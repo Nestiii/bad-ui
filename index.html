@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SistemaReservas v0.3.7-beta</title>
+<style>
+  :root {
+    --c1: #ff00aa;
+    --c2: #00ddff;
+    --c3: #ffee00;
+    --c4: #aa00ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;
+    background: repeating-linear-gradient(45deg, #f5f5dc, #f5f5dc 10px, #e0e0c8 10px, #e0e0c8 20px);
+    color: #222;
+    min-height: 100vh;
+  }
+  button, input { font-family: inherit; }
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #fffaf0;
+    padding: 20px;
+    border: 4px ridge var(--c1);
+    box-shadow: 8px 8px 0 var(--c2);
+  }
+  h1 {
+    text-align: center;
+    color: var(--c4);
+    text-shadow: 2px 2px 0 var(--c3);
+    letter-spacing: 3px;
+    font-size: 2em;
+    margin: 0 0 4px 0;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 16px;
+    font-family: 'Courier New', monospace;
+  }
+  .summary {
+    background: #0a0a0a;
+    color: #00ff66;
+    font-family: 'Courier New', monospace;
+    padding: 12px;
+    margin-bottom: 24px;
+    border: 2px inset #888;
+    font-size: 12px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .field {
+    border: 3px dashed var(--c2);
+    padding: 14px 12px 12px 12px;
+    margin-bottom: 18px;
+    background: #fff;
+    position: relative;
+  }
+  .field h2 {
+    margin: -22px 0 10px 0;
+    font-size: 14px;
+    background: var(--c1);
+    color: white;
+    display: inline-block;
+    padding: 3px 10px;
+    transform: rotate(-1.5deg);
+    letter-spacing: 1px;
+  }
+
+  /* ---------- 1. AÑO ---------- */
+  .year-box {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    justify-content: center;
+  }
+  .year-btn {
+    width: 56px;
+    height: 56px;
+    font-size: 28px;
+    cursor: pointer;
+    background: var(--c3);
+    border: 3px outset #ccc;
+  }
+  .year-btn:active { border-style: inset; }
+  .year-display {
+    font-size: 32px;
+    font-weight: bold;
+    min-width: 140px;
+    text-align: center;
+    font-family: 'Times New Roman', serif;
+    background: #eef;
+    padding: 6px;
+    border: 1px solid #99c;
+  }
+
+  /* ---------- 2. MES ---------- */
+  .month-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+  .month-btn {
+    padding: 12px 4px;
+    font-size: 20px;
+    cursor: pointer;
+    background: #eee;
+    border: 2px solid #999;
+    position: relative;
+    font-weight: bold;
+  }
+  .month-btn.selected {
+    background: var(--c1);
+    color: white;
+    border-color: var(--c4);
+  }
+  .month-tooltip {
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    color: white;
+    padding: 4px 8px;
+    font-size: 11px;
+    opacity: 0;
+    transition: opacity 0.15s 2s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+  }
+  .month-btn:hover .month-tooltip { opacity: 1; }
+
+  /* ---------- 3. DÍA ---------- */
+  .cal-headers, .cal-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+  .cal-headers { margin-bottom: 3px; }
+  .cal-header {
+    background: #444;
+    color: white;
+    text-align: center;
+    padding: 5px 0;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  .cal-day {
+    background: #eee;
+    text-align: center;
+    padding: 8px 0;
+    cursor: pointer;
+    font-size: 13px;
+    border: 1px solid #ccc;
+  }
+  .cal-day:hover:not(.empty) { background: #ffe; }
+  .cal-day.selected {
+    background: var(--c1);
+    color: white;
+    border-color: var(--c4);
+  }
+  .cal-day.empty { background: transparent; cursor: default; border: none; }
+  .cal-placeholder {
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    padding: 20px;
+  }
+
+  /* ---------- 4. HORA ---------- */
+  .hour-box { text-align: center; }
+  .hour-display {
+    font-size: 56px;
+    font-weight: bold;
+    color: var(--c4);
+    font-family: 'Courier New', monospace;
+    display: inline-block;
+    transition: transform 0.18s;
+    min-width: 100px;
+  }
+  .hour-slider {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    margin-top: 8px;
+    background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+    border: 2px solid #333;
+    outline: none;
+  }
+  .hour-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 36px;
+    background: black;
+    cursor: ew-resize;
+    border: 2px solid white;
+  }
+  .hour-slider::-moz-range-thumb {
+    width: 14px;
+    height: 36px;
+    background: black;
+    cursor: ew-resize;
+    border: 2px solid white;
+    border-radius: 0;
+  }
+  .hour-hint {
+    font-size: 10px;
+    color: #666;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  /* ---------- 5. MINUTOS ---------- */
+  .min-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: bold;
+  }
+  .min-input {
+    width: 70px;
+    font-size: 32px;
+    text-align: center;
+    border: 3px solid #888;
+    padding: 4px;
+    font-weight: bold;
+  }
+  .min-input.invalid {
+    background: #ffcccc;
+    border-color: #cc0000;
+    color: #800;
+  }
+  .min-input:focus { outline: 2px solid var(--c2); }
+  .min-help {
+    font-size: 10px;
+    color: #666;
+    margin-top: 6px;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ---------- 6. AM/PM ---------- */
+  .ampm-box { text-align: center; }
+  .ampm-btn {
+    font-size: 40px;
+    padding: 14px 40px;
+    cursor: pointer;
+    background: var(--c2);
+    border: 4px outset #ccc;
+    user-select: none;
+    -webkit-user-select: none;
+    font-weight: bold;
+    display: inline-block;
+    min-width: 140px;
+  }
+  .ampm-btn.charging { background: var(--c3); border-style: inset; }
+  .ampm-progress {
+    height: 8px;
+    background: #eee;
+    margin-top: 8px;
+    border: 1px solid #999;
+  }
+  .ampm-bar {
+    height: 100%;
+    background: var(--c1);
+    width: 0%;
+  }
+  .ampm-hint {
+    font-size: 10px;
+    color: #666;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  /* ---------- CONFIRMAR ---------- */
+  .confirm-area {
+    position: relative;
+    height: 140px;
+    margin-top: 24px;
+    border: 2px dotted #888;
+    overflow: hidden;
+    background: #fafaff;
+  }
+  .confirm-btn {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    padding: 18px 36px;
+    font-size: 22px;
+    background: limegreen;
+    color: white;
+    border: 4px outset #888;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 2px;
+    transition: left 0.18s ease-out, top 0.18s ease-out;
+  }
+  .confirm-btn:active { border-style: inset; }
+
+  #result {
+    margin-top: 16px;
+    padding: 14px;
+    background: #d0ffd0;
+    border: 3px double #060;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    display: none;
+  }
+  #result.error {
+    background: #ffd0d0;
+    border-color: #c00;
+    color: #600;
+  }
+  #result small { display: block; margin-top: 8px; color: #444; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>★ SiStEmA dE rEsErVaS ★</h1>
+  <div class="subtitle">v0.3.7-beta // Best viewed in Netscape Navigator 4</div>
+  <div class="summary" id="summary">Inicializando...</div>
+
+  <section class="field">
+    <h2>1. AÑO</h2>
+    <div class="year-box">
+      <button class="year-btn" id="year-up" title="Subir">▲</button>
+      <div class="year-display" id="year-display">1900</div>
+      <button class="year-btn" id="year-down" title="Bajar">▼</button>
+    </div>
+  </section>
+
+  <section class="field">
+    <h2>2. MES</h2>
+    <div class="month-grid" id="month-grid"></div>
+  </section>
+
+  <section class="field">
+    <h2>3. DÍA</h2>
+    <div class="cal-headers" id="cal-headers"></div>
+    <div class="cal-days" id="cal-days"></div>
+    <div class="cal-placeholder" id="cal-placeholder">(elegí un mes primero)</div>
+  </section>
+
+  <section class="field">
+    <h2>4. HORA (formato 24h)</h2>
+    <div class="hour-box">
+      <div class="hour-display" id="hour-display">00</div>
+      <input type="range" min="0" max="23" value="11" class="hour-slider" id="hour-slider">
+      <div class="hour-hint">deslizá para ajustar (sensibilidad inversa)</div>
+    </div>
+  </section>
+
+  <section class="field">
+    <h2>5. MINUTOS</h2>
+    <div class="min-box">
+      <input type="number" class="min-input" id="min-tens" min="0" max="9" value="0">
+      <span>:</span>
+      <input type="number" class="min-input" id="min-units" min="0" max="9" value="0">
+    </div>
+    <div class="min-help">Decenas (izq) admite ∈ {0, 1, 3, 5} · Unidades (der) admite múltiplos de 7</div>
+  </section>
+
+  <section class="field">
+    <h2>6. AM / PM</h2>
+    <div class="ampm-box">
+      <div class="ampm-btn" id="ampm-btn">AM</div>
+      <div class="ampm-progress"><div class="ampm-bar" id="ampm-bar"></div></div>
+      <div class="ampm-hint">mantené apretado 3 segundos para alternar</div>
+    </div>
+  </section>
+
+  <div class="confirm-area" id="confirm-area">
+    <button class="confirm-btn" id="confirm-btn">CONFIRMAR</button>
+  </div>
+
+  <div id="result"></div>
+</div>
+
+<script>
+'use strict';
+
+const state = {
+  year: 1900,
+  month: null,
+  day: null,
+  hour24: 12,
+  minTens: 0,
+  minUnits: 0,
+  ampm: 'AM',
+};
+
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DOW = ['L','M','X','J','V','S','D'];
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---------- 1. AÑO: flechas invertidas ----------
+document.getElementById('year-up').addEventListener('click', () => {
+  state.year--;
+  state.day = null;
+  render();
+});
+document.getElementById('year-down').addEventListener('click', () => {
+  state.year++;
+  state.day = null;
+  render();
+});
+
+// ---------- 2. MES: 12 botones numerados, mapeo aleatorio a meses ----------
+const monthOrder = shuffle([0,1,2,3,4,5,6,7,8,9,10,11]);
+const monthGrid = document.getElementById('month-grid');
+monthOrder.forEach((monthIdx, btnIdx) => {
+  const btn = document.createElement('button');
+  btn.className = 'month-btn';
+  btn.dataset.month = monthIdx + 1;
+  btn.textContent = btnIdx + 1;
+  const tip = document.createElement('span');
+  tip.className = 'month-tooltip';
+  tip.textContent = MONTHS[monthIdx];
+  btn.appendChild(tip);
+  btn.addEventListener('click', () => {
+    state.month = monthIdx + 1;
+    state.day = null;
+    render();
+  });
+  monthGrid.appendChild(btn);
+});
+
+// ---------- 3. DÍA: encabezados de columna mezclados ----------
+const headerOrder = shuffle([0,1,2,3,4,5,6]);
+const calHeaders = document.getElementById('cal-headers');
+headerOrder.forEach(i => {
+  const h = document.createElement('div');
+  h.className = 'cal-header';
+  h.textContent = DOW[i];
+  calHeaders.appendChild(h);
+});
+
+function renderCalendar() {
+  const calDays = document.getElementById('cal-days');
+  const placeholder = document.getElementById('cal-placeholder');
+  calDays.innerHTML = '';
+  if (!state.month) {
+    placeholder.style.display = 'block';
+    calDays.style.display = 'none';
+    return;
+  }
+  placeholder.style.display = 'none';
+  calDays.style.display = 'grid';
+  const year = state.year;
+  const month = state.month - 1;
+  const firstDay = new Date(year, month, 1);
+  let firstWeekday = firstDay.getDay() - 1;
+  if (firstWeekday < 0) firstWeekday = 6;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < firstWeekday; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'cal-day empty';
+    calDays.appendChild(empty);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+    if (state.day === d) cell.classList.add('selected');
+    cell.textContent = d;
+    cell.addEventListener('click', () => {
+      state.day = d;
+      render();
+    });
+    calDays.appendChild(cell);
+  }
+}
+
+// ---------- 4. HORA: slider invertido + display tembloroso ----------
+const hourSlider = document.getElementById('hour-slider');
+state.hour24 = 23 - parseInt(hourSlider.value, 10);
+hourSlider.addEventListener('input', () => {
+  const raw = parseInt(hourSlider.value, 10);
+  state.hour24 = 23 - raw;
+  render();
+});
+
+function renderHour() {
+  const disp = document.getElementById('hour-display');
+  disp.textContent = String(state.hour24).padStart(2, '0');
+  const tx = (Math.random() - 0.5) * 6;
+  const ty = (Math.random() - 0.5) * 6;
+  const rot = (Math.random() - 0.5) * 8;
+  disp.style.transform = `translate(${tx}px, ${ty}px) rotate(${rot}deg)`;
+}
+setInterval(renderHour, 220);
+
+// ---------- 5. MINUTOS: validación caprichosa ----------
+const minTens = document.getElementById('min-tens');
+const minUnits = document.getElementById('min-units');
+const VALID_TENS = [0, 1, 3, 5];
+function validateMins() {
+  const t = parseInt(minTens.value, 10);
+  const u = parseInt(minUnits.value, 10);
+  const tValid = Number.isFinite(t) && VALID_TENS.includes(t);
+  const uValid = Number.isFinite(u) && u >= 0 && u <= 9 && (u % 7 === 0);
+  minTens.classList.toggle('invalid', !tValid);
+  minUnits.classList.toggle('invalid', !uValid);
+  state.minTens = tValid ? t : 0;
+  state.minUnits = uValid ? u : 0;
+}
+minTens.addEventListener('input', () => { validateMins(); render(); });
+minUnits.addEventListener('input', () => { validateMins(); render(); });
+
+// ---------- 6. AM/PM: mantener 3s ----------
+const ampmBtn = document.getElementById('ampm-btn');
+const ampmBar = document.getElementById('ampm-bar');
+let ampmStart = null;
+let ampmInterval = null;
+function startHold() {
+  if (ampmInterval) return;
+  ampmStart = Date.now();
+  ampmBtn.classList.add('charging');
+  ampmInterval = setInterval(() => {
+    const elapsed = Date.now() - ampmStart;
+    const pct = Math.min(100, (elapsed / 3000) * 100);
+    ampmBar.style.width = pct + '%';
+    if (elapsed >= 3000) {
+      state.ampm = state.ampm === 'AM' ? 'PM' : 'AM';
+      cancelHold();
+      render();
+    }
+  }, 40);
+}
+function cancelHold() {
+  if (ampmInterval) clearInterval(ampmInterval);
+  ampmInterval = null;
+  ampmStart = null;
+  ampmBtn.classList.remove('charging');
+  ampmBar.style.width = '0%';
+}
+ampmBtn.addEventListener('mousedown', startHold);
+ampmBtn.addEventListener('mouseup', cancelHold);
+ampmBtn.addEventListener('mouseleave', cancelHold);
+ampmBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(); }, { passive: false });
+ampmBtn.addEventListener('touchend', cancelHold);
+ampmBtn.addEventListener('touchcancel', cancelHold);
+
+// ---------- 7. CONFIRMAR: el botón huye ----------
+const confirmArea = document.getElementById('confirm-area');
+const confirmBtn = document.getElementById('confirm-btn');
+
+confirmBtn.addEventListener('mouseenter', () => {
+  if (Math.random() < 0.6) {
+    const rect = confirmArea.getBoundingClientRect();
+    const bw = confirmBtn.offsetWidth;
+    const bh = confirmBtn.offsetHeight;
+    const maxX = Math.max(0, rect.width - bw - 10);
+    const maxY = Math.max(0, rect.height - bh - 10);
+    const newX = 5 + Math.random() * maxX;
+    const newY = 5 + Math.random() * maxY;
+    confirmBtn.style.left = newX + 'px';
+    confirmBtn.style.top = newY + 'px';
+    confirmBtn.style.transform = 'none';
+  }
+});
+
+confirmBtn.addEventListener('click', attemptSubmit);
+
+function attemptSubmit() {
+  const errs = [];
+  if (state.month === null) errs.push('No elegiste mes');
+  if (state.day === null) errs.push('No elegiste día');
+
+  const result = document.getElementById('result');
+  if (errs.length) {
+    result.classList.add('error');
+    result.style.display = 'block';
+    result.innerHTML = '<strong>ERROR_47B:</strong> ' + errs.join(' · ');
+    return;
+  }
+  result.classList.remove('error');
+  result.style.display = 'block';
+  result.innerHTML = '<strong>✓ TURNO RESERVADO</strong><br>' +
+    formatFinal() +
+    '<small>Conserve este código. Su turno será confirmado por fax dentro de 6-8 semanas hábiles.</small>';
+}
+
+function formatFinal() {
+  const m = String(state.month).padStart(2, '0');
+  const d = String(state.day).padStart(2, '0');
+  const h = String(state.hour24).padStart(2, '0');
+  const min = state.minTens * 10 + state.minUnits;
+  const minStr = String(min).padStart(2, '0');
+  return `${state.year}-${m}-${d}  ${h}:${minStr} (${state.ampm})`;
+}
+
+function toRoman(num) {
+  if (num <= 0 || num > 3999) return String(num);
+  const vals = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  let r = '';
+  for (const [v, s] of vals) {
+    while (num >= v) { r += s; num -= v; }
+  }
+  return r;
+}
+
+function render() {
+  document.getElementById('year-display').textContent = state.year;
+  document.querySelectorAll('.month-btn').forEach(b => {
+    b.classList.toggle('selected', parseInt(b.dataset.month, 10) === state.month);
+  });
+  renderCalendar();
+  renderHour();
+  ampmBtn.textContent = state.ampm;
+
+  const min = state.minTens * 10 + state.minUnits;
+  const monthName = state.month ? MONTHS[state.month - 1] : '???';
+  const dayStr = state.day ?? '??';
+  const summary =
+    '> reserva.parse({\n' +
+    '    year:   ' + state.year + '  (' + toRoman(state.year) + ')\n' +
+    '    month:  ' + (state.month ?? '??') + '  [' + monthName + ']\n' +
+    '    day:    ' + dayStr + '\n' +
+    '    time:   ' + String(state.hour24).padStart(2, '0') + ':' + String(min).padStart(2, '0') + ' ' + state.ampm + '\n' +
+    '    epoch:  0x' + Date.now().toString(16) + '\n' +
+    '  })';
+  document.getElementById('summary').textContent = summary;
+}
+
+render();
+</script>
+</body>
+</html>
