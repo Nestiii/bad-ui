@@ -1,0 +1,382 @@
+openapi: 3.0.3
+
+# ---------------------------------------------------------------------------
+# Contrato de la API "SistemaReservas".
+# Es la versión limpia del backend que alimenta el formulario bad-ui:
+# el form recolecta año/mes/día/hora/minutos/AM-PM y termina creando un TURNO.
+# Acá modelamos solo el CONTRATO (no implementación, base de datos, auth ni deploy).
+# ---------------------------------------------------------------------------
+
+info:
+  title: API SistemaReservas
+  description: |
+    API REST para reservar turnos sobre recursos (consultorios, canchas,
+    profesionales). Cada recurso expone una agenda de turnos.
+
+    Jerarquía de recursos: `recursos → turnos`.
+  version: 0.3.7-beta
+
+servers:
+  - url: https://api.sistemareservas.example/v1
+    description: Servidor de ejemplo
+
+tags:
+  - name: recursos
+    description: Cosas reservables (consultorio, cancha, profesional).
+  - name: turnos
+    description: Slots reservados dentro de un recurso.
+
+# ---------------------------------------------------------------------------
+# PATHS — la jerarquía recursos → turnos queda visible en la ruta.
+# ---------------------------------------------------------------------------
+paths:
+
+  /recursos:
+    get:
+      tags: [recursos]
+      summary: Listar recursos
+      operationId: listarRecursos
+      responses:
+        '200':
+          description: Lista de recursos disponibles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Recurso'
+
+  /recursos/{recursoId}:
+    parameters:
+      - $ref: '#/components/parameters/RecursoId'
+    get:
+      tags: [recursos]
+      summary: Obtener un recurso
+      operationId: obtenerRecurso
+      responses:
+        '200':
+          description: El recurso solicitado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recurso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /recursos/{recursoId}/turnos:
+    parameters:
+      - $ref: '#/components/parameters/RecursoId'
+    get:
+      tags: [turnos]
+      summary: Listar turnos de un recurso
+      operationId: listarTurnos
+      parameters:
+        - name: estado
+          in: query
+          description: Filtrar por estado del turno.
+          required: false
+          schema:
+            $ref: '#/components/schemas/EstadoTurno'
+      responses:
+        '200':
+          description: Turnos del recurso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Turno'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    post:
+      tags: [turnos]
+      summary: Reservar un turno
+      description: |
+        Crea un turno en la agenda del recurso. Es la operación que dispara
+        el botón CONFIRMAR del formulario.
+      operationId: crearTurno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NuevoTurno'
+      responses:
+        '201':
+          description: Turno reservado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Turno'
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+
+  /recursos/{recursoId}/turnos/{turnoId}:
+    parameters:
+      - $ref: '#/components/parameters/RecursoId'
+      - $ref: '#/components/parameters/TurnoId'
+    get:
+      tags: [turnos]
+      summary: Obtener un turno
+      operationId: obtenerTurno
+      responses:
+        '200':
+          description: El turno solicitado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Turno'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    delete:
+      tags: [turnos]
+      summary: Cancelar un turno
+      operationId: cancelarTurno
+      responses:
+        '204':
+          description: Turno cancelado. Sin contenido.
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  # Endpoint agregado en una iteración posterior (Requisito 5): reutiliza el
+  # parámetro RecursoId y la respuesta NoEncontrado ya definidos en components.
+  /recursos/{recursoId}/disponibilidad:
+    parameters:
+      - $ref: '#/components/parameters/RecursoId'
+    get:
+      tags: [turnos]
+      summary: Consultar disponibilidad
+      description: |
+        Devuelve los slots de una fecha indicando cuáles están libres.
+        Es lo que el calendario del formulario bad-ui *debería* mostrar.
+      operationId: consultarDisponibilidad
+      parameters:
+        - name: fecha
+          in: query
+          required: true
+          description: Fecha a consultar (ISO 8601, sin hora).
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Slots de la fecha solicitada.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SlotDisponibilidad'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+# ---------------------------------------------------------------------------
+# COMPONENTS — reutilizables. Agregar un endpoint nuevo no obliga a reescribir.
+# ---------------------------------------------------------------------------
+components:
+
+  parameters:
+    RecursoId:
+      name: recursoId
+      in: path
+      required: true
+      description: Identificador del recurso.
+      schema:
+        type: string
+        format: uuid
+    TurnoId:
+      name: turnoId
+      in: path
+      required: true
+      description: Identificador del turno.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NoEncontrado:
+      description: El recurso o turno solicitado no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: ERROR_404
+            mensaje: El recurso solicitado no existe.
+            detalles: []
+    SolicitudInvalida:
+      description: El cuerpo de la solicitud no pasó las validaciones.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: ERROR_47B
+            mensaje: La solicitud tiene campos inválidos.
+            detalles:
+              - No elegiste mes
+              - No elegiste día
+    Conflicto:
+      description: Ya existe un turno reservado en ese horario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: ERROR_409
+            mensaje: El horario solicitado ya está ocupado.
+            detalles: []
+
+  schemas:
+
+    EstadoTurno:
+      type: string
+      description: Estado del ciclo de vida de un turno.
+      enum:
+        - pendiente
+        - confirmado
+        - cancelado
+
+    TipoRecurso:
+      type: string
+      description: Categoría del recurso reservable.
+      enum:
+        - consultorio
+        - cancha
+        - sala
+        - profesional
+
+    Cliente:
+      type: object
+      required:
+        - nombre
+        - email
+      properties:
+        nombre:
+          type: string
+          example: Facundo Rivas
+        email:
+          type: string
+          format: email
+          example: facundo@example.com
+        telefono:
+          type: string
+          example: '+54 11 5555-5555'
+
+    Recurso:
+      type: object
+      required:
+        - id
+        - nombre
+        - tipo
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        nombre:
+          type: string
+          example: Consultorio 3
+        tipo:
+          $ref: '#/components/schemas/TipoRecurso'
+        activo:
+          type: boolean
+          default: true
+
+    NuevoTurno:
+      type: object
+      description: Datos necesarios para reservar un turno.
+      required:
+        - inicio
+        - cliente
+      properties:
+        inicio:
+          type: string
+          format: date-time
+          description: Fecha y hora de inicio del turno (ISO 8601).
+          example: '2026-07-15T14:30:00-03:00'
+        duracionMinutos:
+          type: integer
+          format: int32
+          description: Duración del turno en minutos.
+          minimum: 15
+          maximum: 240
+          default: 30
+        cliente:
+          $ref: '#/components/schemas/Cliente'
+
+    Turno:
+      type: object
+      required:
+        - id
+        - recursoId
+        - inicio
+        - estado
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        recursoId:
+          type: string
+          format: uuid
+          readOnly: true
+        inicio:
+          type: string
+          format: date-time
+          example: '2026-07-15T14:30:00-03:00'
+        duracionMinutos:
+          type: integer
+          format: int32
+          example: 30
+        estado:
+          $ref: '#/components/schemas/EstadoTurno'
+        codigoConfirmacion:
+          type: string
+          description: Código que el usuario debe conservar.
+          readOnly: true
+          example: TRN-7F3A9
+        cliente:
+          $ref: '#/components/schemas/Cliente'
+        creadoEn:
+          type: string
+          format: date-time
+          readOnly: true
+
+    SlotDisponibilidad:
+      type: object
+      description: Un horario consultado y su estado de ocupación.
+      required:
+        - inicio
+        - disponible
+      properties:
+        inicio:
+          type: string
+          format: date-time
+          example: '2026-07-15T14:30:00-03:00'
+        disponible:
+          type: boolean
+          example: true
+
+    Error:
+      type: object
+      required:
+        - codigo
+        - mensaje
+      properties:
+        codigo:
+          type: string
+          description: Código de error legible por máquina.
+          example: ERROR_47B
+        mensaje:
+          type: string
+          description: Descripción legible por humanos.
+        detalles:
+          type: array
+          description: Lista de problemas concretos, si aplica.
+          items:
+            type: string
